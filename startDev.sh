@@ -1,0 +1,1 @@
+nodemon -e c,h --exec "cc main.c && ./a.out"
