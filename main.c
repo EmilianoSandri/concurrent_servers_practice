@@ -7,6 +7,7 @@
 #include <unistd.h> // Syscalls di base
 #include <pthread.h>
 
+#include "thread_pool/thread_pool.h"
 #include "utils.h"
 
 typedef enum { WAIT_FOR_MSG, IN_MSG } ProcessingState;
@@ -54,21 +55,20 @@ void serve_connection(int sockfd) {
 	close(sockfd);
 }
 
-void *server_thread(void* arg) {
+void serve_connection_wrapper(void* arg) {
     thread_config_t* config = (thread_config_t*)arg;
     int sockfd = config->sockfd;
     free(config);
 
-    unsigned long id = (long long)pthread_self();
-    printf("Thread %lu created to handle connection with socket %d\n", id, sockfd);
+    printf("Handle connection trough socket %d\n", sockfd);
     serve_connection(sockfd);
-    printf("Thread %lu done\n", id);
-    return 0;
+    printf("Socket %d closed\n", sockfd);
 }
 
 int main(int argc, char** argv){
     printf("Pronti a partire!\n");
-	
+
+    tpool_t *tpool = tpool_create(2);
 	setvbuf(stdout, NULL, _IONBF, 0);
 	
 	int portnum = 9090;
@@ -90,16 +90,15 @@ int main(int argc, char** argv){
 		}
 		
 		report_peer_connected(&peer_addr, peer_addr_len);
-        pthread_t the_thread;
 
         thread_config_t* config = (thread_config_t*)malloc(sizeof(*config));
         if(!config) {
             die("OOM");
         }
         config->sockfd = newsockfd;
-        pthread_create(&the_thread, NULL, server_thread, config);
 
-        pthread_detach(the_thread);
+        tpool_add_work(tpool, serve_connection_wrapper, config);
+
         /*
 		serve_connection(newsockfd);
 		printf("peer done\n");
